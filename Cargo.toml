@@ -1,0 +1,21 @@
+[package]
+name = "storm-rs"
+version = "0.1.0"
+edition = "2024"
+authors = ["phphacker <phphackerr@gmail.com>"]
+description = "A pure Rust implementation of StormLib for reading MPQ archives."
+repository = "https://github.com/phphackerr/storm-rs"
+license = "MIT"
+keywords = ["mpq", "blizzard", "archive", "parser", "writer"]
+categories = ["compression", "encoding", "filesystem"]
+
+[dependencies]
+byteorder = "1.5.0"
+bzip2 = "0.6.1"
+crc32fast = "1.5.0"
+flate2 = "1.1.5"
+log = "0.4.29"
+lzma-rust2 = "0.15.4"
+md-5 = "0.10.6"
+rsa = "0.9.9"
+sha-1 = "0.10.1"
