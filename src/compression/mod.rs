@@ -271,7 +271,13 @@ pub fn compress(input: &[u8], compression_mask: u8) -> MpqResult<Vec<u8>> {
     // If the mask is EXACTLY LZMA, we only do LZMA and skip others that might overlap bit-wise
     // (LZMA 0x12 overlaps with ZLIB 0x02 and BZip2 0x10)
     if compression_mask == MPQ_COMPRESSION_LZMA {
-        current_data = compress_lzma(&current_data)?;
+        // For MPQ sectors StormLib expects the data to start with the method byte (0x12)
+        // followed by the 5-byte LZMA props and compressed payload (MPK-style props).
+        // We will return `current_data` as the *payload* (props+compressed) and let the final
+        // prepend at the end of this function add the compression type byte only once.
+        let payload =
+            lzma::compress_lzma_mpq(&current_data).map_err(|_| MpqError::CompressionFailed)?;
+        current_data = payload;
     } else {
         // ZLIB (0x02)
         if (compression_mask & MPQ_COMPRESSION_ZLIB) != 0 {

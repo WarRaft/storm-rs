@@ -15,7 +15,7 @@ bzip2 = "0.6.1"
 crc32fast = "1.5.0"
 flate2 = "1.1.5"
 log = "0.4.29"
-lzma-rust2 = "0.15.4"
+lzma-rust2 = { version = "0.15.7", features = ["encoder"] }
 md-5 = "0.10.6"
 rsa = "0.9.9"
 sha-1 = "0.10.1"

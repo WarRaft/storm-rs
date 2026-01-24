@@ -440,44 +440,21 @@ impl HuffmanTree {
         let mut current = item_idx;
 
         while let Some(parent_idx) = self.nodes[current as usize].parent {
-            // If current is the lower weight child (right child in bitstream terms usually 1, but here check logic)
-            // In decode: bit 0 -> child_lo (lower weight?), bit 1 -> child_hi (higher weight?)
-            // decode_one_byte:
-            // bit != 0 -> current = nodes[child_lo].prev (which is child_hi)
-            // bit == 0 -> current = child_lo
-            // So: child_lo corresponds to bit 0, child_hi corresponds to bit 1.
-
-            // Check if current is child_lo of parent
-            if self.nodes[parent_idx as usize].child_lo == Some(current) {
-                // It is child_lo, so bit is 0.
-                // code |= 0 << length;
+            let bit = if self.nodes[parent_idx as usize].child_lo == Some(current) {
+                0
             } else {
-                // It is child_hi, so bit is 1.
-                code |= 1 << length;
-            }
+                1
+            };
+            
+            // Match StormLib logic: build bits from leaf to root, shifting previous bits left.
+            // This places the root-most bit at the LSB.
+            // Since write_bits writes LSB first, this ensures the root bit is written first.
+            code = (code << 1) | bit;
             length += 1;
+            
             current = parent_idx;
         }
 
-        // The code is built from leaf to root, so the bits are in reverse order for writing?
-        // Wait, if I write bits: bit 0, bit 1, bit 2...
-        // If path is 0 -> 1 -> 0
-        // I should write 0, then 1, then 0.
-        // My loop builds: bit 0 (leaf->parent), bit 1 (parent->grandparent)...
-        // So bit 0 of `code` corresponds to the last step (root->child).
-        // No, bit 0 of `code` as constructed above corresponds to leaf->parent step.
-        // If I write it as `write_bits(code, length)`, it writes LSB first.
-        // So it writes leaf->parent step first.
-        // But decoder reads root->child.
-        // So I need to reverse the bits.
-
-        let mut reversed_code = 0;
-        for i in 0..length {
-            if (code & (1 << i)) != 0 {
-                reversed_code |= 1 << (length - 1 - i);
-            }
-        }
-
-        (reversed_code, length)
+        (code, length)
     }
 }

@@ -87,6 +87,7 @@ pub fn decompress_huffman(input: &[u8], output_size: usize) -> Result<Vec<u8>, &
                 tree.inc_weights_and_rebalance(idx);
             }
 
+
             output.push(literal as u8);
         } else {
             output.push(value as u8);
@@ -94,10 +95,10 @@ pub fn decompress_huffman(input: &[u8], output_size: usize) -> Result<Vec<u8>, &
             if tree.is_cmp0
                 && let Some(idx) = tree.items_by_byte[value as usize]
             {
-                tree.inc_weights_and_rebalance(idx);
+                    tree.inc_weights_and_rebalance(idx);
+                }
             }
         }
-    }
 
     Ok(output)
 }
@@ -168,8 +169,8 @@ pub fn compress_huffman(input: &[u8]) -> Result<Vec<u8>, &'static str> {
                 return Err("Huffman: failed to insert new branch");
             }
 
-            if let Some(idx) = tree.items_by_byte[value as usize] {
-                tree.inc_weights_and_rebalance(idx);
+                if let Some(idx) = tree.items_by_byte[value as usize] {
+                    tree.inc_weights_and_rebalance(idx);
             }
         }
     }

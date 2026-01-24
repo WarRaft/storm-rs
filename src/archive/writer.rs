@@ -689,6 +689,8 @@ impl MpqArchiveWriter {
             // Write sector offsets to the beginning of dest_data
             let mut offset_bytes = Vec::with_capacity(table_size);
             for offset in &sector_offsets {
+                // StormLib expects sector offsets stored in Little Endian (on LE platforms like Windows).
+                // BSWAP_ARRAY32_UNSIGNED is a no-op on LE platforms.
                 offset_bytes.extend_from_slice(&offset.to_le_bytes());
             }
 
