@@ -16,7 +16,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-storm-rs = { git = "https://github.com/phphackerr/storm-rs" }
+storm-rs = { git = "https://github.com/WarRaft/storm-rs" }
 ```
 
 ## Usage
