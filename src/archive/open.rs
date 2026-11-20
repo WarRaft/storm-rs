@@ -321,32 +321,34 @@ impl MpqArchive {
     }
 
     /// Read and parse the internal (listfile).
+    ///
+    /// Line by line: a line that isn't UTF-8 is skipped, not the whole
+    /// listfile. Some archives (Warcraft III's `War3Patch.mpq`) start it
+    /// with junk bytes to put tools off.
     pub fn read_listfile(&mut self) -> MpqResult<()> {
-        if let Ok(listfile_data) = self.read_file_internal("(listfile)")
-            && let Ok(listfile_str) = String::from_utf8(listfile_data)
-        {
-            for line in listfile_str.lines() {
-                let s = line.trim();
-                if !s.is_empty() {
-                    self.known_filenames.insert(s.to_string());
-                }
-            }
+        if let Ok(listfile_data) = self.read_file_internal("(listfile)") {
+            self.add_listfile_names(&listfile_data);
         }
         Ok(())
     }
 
-    /// Add an external listfile to the known filenames.
-    pub fn add_external_listfile<P: AsRef<Path>>(&mut self, path: P) -> MpqResult<()> {
-        use std::io::BufRead;
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-
-        for s in reader.lines().flatten() {
-            let s = s.trim();
-            if !s.is_empty() {
-                self.known_filenames.insert(s.to_string());
+    /// Adds the names of a listfile's bytes: one per line (`\r\n`, `\n`
+    /// or `;`), trimmed; lines that aren't UTF-8 are skipped.
+    fn add_listfile_names(&mut self, data: &[u8]) {
+        for line in data.split(|&b| b == b'\n' || b == b'\r' || b == b';') {
+            if let Ok(name) = std::str::from_utf8(line) {
+                let name = name.trim();
+                if !name.is_empty() {
+                    self.known_filenames.insert(name.to_string());
+                }
             }
         }
+    }
+
+    /// Add an external listfile to the known filenames.
+    pub fn add_external_listfile<P: AsRef<Path>>(&mut self, path: P) -> MpqResult<()> {
+        let data = std::fs::read(path)?;
+        self.add_listfile_names(&data);
         Ok(())
     }
 

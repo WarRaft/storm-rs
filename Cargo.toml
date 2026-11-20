@@ -9,6 +9,10 @@ license = "MIT"
 keywords = ["mpq", "blizzard", "archive", "parser", "writer"]
 categories = ["compression", "encoding", "filesystem"]
 
+[workspace]
+# The library is this package; `cli` is the `storm` command built on it.
+members = ["cli"]
+
 [dependencies]
 byteorder = "1.5.0"
 bzip2 = "0.6.1"

@@ -1,0 +1,16 @@
+[package]
+name = "storm-cli"
+version = "0.1.0"
+edition = "2024"
+description = "The `storm` command: look into MPQ archives (Warcraft III's .mpq, .w3x, .w3m) and change them, built on storm-rs."
+repository = "https://github.com/WarRaft/storm-rs"
+license = "MIT"
+keywords = ["mpq", "blizzard", "archive", "cli", "warcraft"]
+categories = ["command-line-utilities", "compression"]
+
+[[bin]]
+name = "storm"
+path = "src/main.rs"
+
+[dependencies]
+storm-rs = { path = ".." }
