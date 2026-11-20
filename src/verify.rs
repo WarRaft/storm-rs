@@ -12,7 +12,7 @@ use crate::error::{MpqError, MpqResult};
 
 use md5::{Digest, Md5};
 use rsa::pkcs1::DecodeRsaPublicKey;
-use rsa::{Pkcs1v15Sign, RsaPublicKey};
+use rsa::{Pkcs1v15Sign, PublicKey};
 use sha1::Sha1;
 
 /// Verification flags.
@@ -555,7 +555,7 @@ pub fn verify_weak_signature(archive: &MpqArchive, _info: &SignatureInfo) -> Mpq
     let digest = hasher.finalize();
 
     // Verify signature
-    let public_key = RsaPublicKey::from_pkcs1_pem(BLIZZARD_WEAK_PUBLIC_KEY)
+    let public_key = PublicKey::from_pkcs1_pem(BLIZZARD_WEAK_PUBLIC_KEY)
         .map_err(|_| MpqError::Generic("Invalid public key format".to_string()))?;
 
     // Verify signature using verify_hash to avoid trait bound issues with md-5 crate
@@ -613,7 +613,7 @@ pub fn verify_strong_signature(archive: &MpqArchive, info: &SignatureInfo) -> Mp
         }
         let digest = h.finalize();
 
-        let public_key = RsaPublicKey::from_pkcs1_pem(key_pem)
+        let public_key = PublicKey::from_pkcs1_pem(key_pem)
             .map_err(|_| MpqError::Generic("Invalid public key format".to_string()))?;
 
         // SHA1 OID header (15 bytes)

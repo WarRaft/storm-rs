@@ -19,7 +19,7 @@ use crate::error::{MpqError, MpqResult};
 use crate::types::*;
 use crate::verify::{calculate_crc32, calculate_md5};
 use md5::{Digest, Md5};
-use rsa::{Pkcs1v15Sign, RsaPrivateKey, pkcs1::DecodeRsaPrivateKey};
+use rsa::{Pkcs1v15Sign, PrivateKey, pkcs1::DecodeRsaPrivateKey};
 
 const BLIZZARD_WEAK_PRIVATE_KEY: &str = "-----BEGIN PRIVATE KEY-----\n\
     MIIBOQIBAAJBAJJidwS/uILMBSO5DLGsBFknIXWWjQJe2kfdfEk3G/j66w4KkhZ1\n\
@@ -894,7 +894,7 @@ impl MpqArchiveWriter {
                 let digest = hasher.finalize();
 
                 // Sign the hash
-                let priv_key = RsaPrivateKey::from_pkcs1_pem(BLIZZARD_WEAK_PRIVATE_KEY)
+                let priv_key = PrivateKey::from_pkcs1_pem(BLIZZARD_WEAK_PRIVATE_KEY)
                     .map_err(|_| MpqError::InvalidParameter)?;
 
                 // Manually construct DigestInfo for MD5 because rsa crate might not support MD5 OID automatically

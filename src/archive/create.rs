@@ -8,7 +8,7 @@ use std::io::{BufWriter, Seek, Write};
 use std::path::Path;
 
 use crate::archive::het_bet::{write_bet_table, write_het_table};
-use crate::compression::auto_compress;
+use crate::compression::compress;
 use crate::constants::*;
 use crate::crypto::{calculate_file_key, encrypt_block, hash_string, hash_string_jenkins};
 use crate::error::{MpqError, MpqResult};
@@ -447,6 +447,7 @@ impl MpqArchiveBuilder {
                 &mut hash_table,
                 &mut block_table,
                 hash_table_size,
+                self.options.sector_size,
             )?;
             file_names.push(entry.name.clone());
         }
@@ -491,6 +492,7 @@ impl MpqArchiveBuilder {
                 &mut hash_table,
                 &mut block_table,
                 hash_table_size,
+                self.options.sector_size,
             )?;
             file_names.push("(listfile)".to_string());
         }
@@ -544,6 +546,7 @@ impl MpqArchiveBuilder {
                 &mut hash_table,
                 &mut block_table,
                 hash_table_size,
+                self.options.sector_size,
             )?;
             file_names.push("(attributes)".to_string());
         }
@@ -631,29 +634,46 @@ impl MpqArchiveBuilder {
         hash_table: &mut [MpqHash],
         block_table: &mut Vec<MpqBlock>,
         hash_table_size: u32,
+        sector_size: u32,
     ) -> MpqResult<()> {
-        // Compress
-        let (compressed_data, compression_flags) = if (flags & MPQ_FILE_COMPRESS) != 0 {
-            auto_compress(data)?
-        } else {
-            (data.to_vec(), 0)
-        };
+        let encrypted = (flags & MPQ_FILE_ENCRYPTED) != 0;
+        let key = calculate_file_key(name, *current_pos as u64, data.len() as u32, flags);
 
-        // If compression failed or wasn't worth it, unset the compress flag
         let mut final_flags = flags;
-        if compression_flags == 0 {
-            final_flags &= !MPQ_FILE_COMPRESS;
+        let final_data = if (flags & MPQ_FILE_COMPRESS) != 0 && !data.is_empty() {
+            // A compressed file is stored in sectors, each compressed on its
+            // own (or stored as is when that isn't smaller), after a table of
+            // sector offsets, the layout readers expect when
+            // MPQ_FILE_SINGLE_UNIT isn't set.
+            let sector_size = sector_size.max(512) as usize;
+            let sectors = data.len().div_ceil(sector_size);
+            let table_size = (sectors + 1) * 4;
+            let mut offsets = Vec::with_capacity(sectors + 1);
+            let mut body = Vec::new();
+            for (i, raw) in data.chunks(sector_size).enumerate() {
+                offsets.push((table_size + body.len()) as u32);
+                let packed = compress(raw, MPQ_COMPRESSION_ZLIB)?;
+                let mut sector = if packed.len() < raw.len() { packed } else { raw.to_vec() };
+                if encrypted {
+                    encrypt_block(&mut sector, key.wrapping_add(i as u32));
+                }
+                body.extend_from_slice(&sector);
+            }
+            offsets.push((table_size + body.len()) as u32);
+            let mut table: Vec<u8> = offsets.iter().flat_map(|o| o.to_le_bytes()).collect();
+            if encrypted {
+                encrypt_block(&mut table, key.wrapping_sub(1));
+            }
+            table.extend_from_slice(&body);
+            table
         } else {
-            final_flags |= compression_flags;
-        }
-
-        // Encrypt
-        let mut final_data = compressed_data;
-        if (flags & MPQ_FILE_ENCRYPTED) != 0 {
-            // Calculate key
-            let key = calculate_file_key(name, *current_pos as u64, data.len() as u32, flags);
-            encrypt_block(&mut final_data, key);
-        }
+            final_flags &= !MPQ_FILE_COMPRESS;
+            let mut raw = data.to_vec();
+            if encrypted {
+                encrypt_block(&mut raw, key);
+            }
+            raw
+        };
 
         // Write data
         writer.write_all(&final_data)?;
