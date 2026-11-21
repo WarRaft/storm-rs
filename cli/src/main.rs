@@ -16,10 +16,7 @@ use storm_rs::archive::create::MpqCreateOptions;
 use storm_rs::archive::{MpqArchiveBuilder, extract_path, folder_files, mpq_name};
 use storm_rs::verify::flags::{VERIFY_FILE_CRC, VERIFY_FILE_MD5, VERIFY_SECTOR_CRC};
 use storm_rs::verify::verify_file;
-use storm_rs::{
-    AddFileOptions, MPQ_FILE_COMPRESS, MPQ_FILE_ENCRYPTED, MPQ_FILE_IMPLODE, MPQ_FILE_KEY_V2,
-    MPQ_FILE_PATCH_FILE, MPQ_FILE_SECTOR_CRC, MPQ_FILE_SINGLE_UNIT, MpqArchive, MpqArchiveWriter,
-};
+use storm_rs::{AddFileOptions, MpqArchive, MpqArchiveWriter};
 
 fn usage() {
     eprintln!(
@@ -201,20 +198,7 @@ fn info(archive: &MpqArchive, json: bool) -> Result<ExitCode> {
 
 /// The block flags in words.
 fn flags_text(flags: u32) -> String {
-    let names = [
-        (MPQ_FILE_IMPLODE, "implode"),
-        (MPQ_FILE_COMPRESS, "compress"),
-        (MPQ_FILE_ENCRYPTED, "encrypted"),
-        (MPQ_FILE_KEY_V2, "fix-key"),
-        (MPQ_FILE_PATCH_FILE, "patch"),
-        (MPQ_FILE_SINGLE_UNIT, "single-unit"),
-        (MPQ_FILE_SECTOR_CRC, "sector-crc"),
-    ];
-    let set: Vec<&str> = names
-        .iter()
-        .filter(|(f, _)| flags & f != 0)
-        .map(|(_, n)| *n)
-        .collect();
+    let set = storm_rs::archive::flag_names(flags);
     if set.is_empty() {
         "-".into()
     } else {

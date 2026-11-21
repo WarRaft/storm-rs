@@ -10,7 +10,10 @@
 use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 
-use crate::constants::MPQ_FILE_EXISTS;
+use crate::constants::{
+    MPQ_FILE_COMPRESS, MPQ_FILE_ENCRYPTED, MPQ_FILE_EXISTS, MPQ_FILE_IMPLODE, MPQ_FILE_KEY_V2,
+    MPQ_FILE_PATCH_FILE, MPQ_FILE_SECTOR_CRC, MPQ_FILE_SINGLE_UNIT,
+};
 use crate::file::check_wildcard;
 use crate::types::FileInfo;
 
@@ -19,6 +22,25 @@ use super::{MpqArchive, MpqArchiveBuilder};
 /// The archive's own files, which no listfile names: the listfile itself,
 /// the attributes (CRC32, MD5, times), the signature.
 pub const SPECIAL_FILES: [&str; 3] = ["(listfile)", "(attributes)", "(signature)"];
+
+/// A file's block flags in words: `compress`, `encrypted`, `fix-key`
+/// (the key depends on the file's place), `implode`, `patch`,
+/// `single-unit` (no sectors), `sector-crc`.
+pub fn flag_names(flags: u32) -> Vec<&'static str> {
+    [
+        (MPQ_FILE_IMPLODE, "implode"),
+        (MPQ_FILE_COMPRESS, "compress"),
+        (MPQ_FILE_ENCRYPTED, "encrypted"),
+        (MPQ_FILE_KEY_V2, "fix-key"),
+        (MPQ_FILE_PATCH_FILE, "patch"),
+        (MPQ_FILE_SINGLE_UNIT, "single-unit"),
+        (MPQ_FILE_SECTOR_CRC, "sector-crc"),
+    ]
+    .into_iter()
+    .filter(|(f, _)| flags & f != 0)
+    .map(|(_, n)| n)
+    .collect()
+}
 
 /// `name` as an archive spells it: `\`-separated.
 pub fn mpq_name(name: &str) -> String {
