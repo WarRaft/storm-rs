@@ -5,6 +5,10 @@
 //! `War3xLocal.mpq`, `War3Patch.mpq`, and a loose file in its folder wins
 //! over all of them.
 //!
+//! More layers go on top with [`Layers::push`]: a folder, or an archive
+//! (a map), each over everything before it; a map's files over the
+//! game's, the way the game loads a map.
+//!
 //! A file is named the way an archive names it, `Units\UnitData.slk`; `/`
 //! works too, and on disk any case matches.
 
@@ -64,6 +68,22 @@ impl Layers {
             }
         }
         (out, errors)
+    }
+
+    /// Puts `path` on top of the layers: a folder as it is, a file as an
+    /// archive (a map: `.w3x`, `.w3m`, any MPQ). Fails, adding nothing,
+    /// when it's neither or the archive can't be opened.
+    pub fn push(&mut self, path: &Path) -> Result<(), String> {
+        if path.is_dir() {
+            self.layers.push(Layer::Folder(path.to_path_buf()));
+            return Ok(());
+        }
+        if !path.is_file() {
+            return Err(format!("{}: no such folder or archive", path.display()));
+        }
+        let archive = MpqArchive::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        self.layers.push(Layer::Archive(Box::new(archive)));
+        Ok(())
     }
 
     /// Whether nothing was opened.
@@ -173,5 +193,35 @@ mod tests {
         assert_eq!(text("..\\a.txt"), None);
         assert_eq!(text("nope.txt"), None);
         assert!(Layers::open(&[dir.join("none")], &["base.mpq"]).0.is_empty());
+    }
+
+    #[test]
+    fn pushed_roots_go_on_top() {
+        let dir = std::env::temp_dir().join(format!("storm-layers-roots-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let game = dir.join("game");
+        let root = dir.join("root");
+        std::fs::create_dir_all(&game).unwrap();
+        std::fs::create_dir_all(root.join("UI")).unwrap();
+        std::fs::write(game.join("a.txt"), "game").unwrap();
+        std::fs::write(game.join("b.txt"), "game").unwrap();
+        std::fs::write(game.join("c.txt"), "game").unwrap();
+        MpqArchiveBuilder::new(dir.join("Map.w3x"))
+            .add_file("a.txt", b"map".to_vec())
+            .add_file("b.txt", b"map".to_vec())
+            .build()
+            .unwrap();
+        std::fs::write(root.join("B.TXT"), "root").unwrap();
+        let (mut layers, _) = Layers::open(std::slice::from_ref(&game), &[]);
+        layers.push(&dir.join("Map.w3x")).unwrap();
+        layers.push(&root).unwrap();
+        let text = |n: &str| layers.read(n).map(|(d, _)| String::from_utf8(d).unwrap());
+        assert_eq!(text("a.txt").as_deref(), Some("map"));
+        assert_eq!(text("b.txt").as_deref(), Some("root"));
+        assert_eq!(text("C.txt").as_deref(), Some("game"));
+        assert_eq!(layers.find("a.txt"), Some(Source::Archive(dir.join("Map.w3x"))));
+        assert!(layers.push(&dir.join("none")).unwrap_err().contains("no such folder"));
+        std::fs::write(dir.join("junk.w3x"), "no").unwrap();
+        assert!(layers.push(&dir.join("junk.w3x")).is_err());
     }
 }
