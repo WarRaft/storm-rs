@@ -71,6 +71,21 @@ external one, and the archive's own `(listfile)`, `(attributes)`,
 `(signature)`); `find_files(masks)` filters them by StormLib masks;
 `MpqArchiveBuilder::add_folder(dir)` adds every file under a folder.
 
+### Layers: a game's files
+
+`archive::Layers` reads files the way a game does, from archives and
+folders laid over each other: in each folder its archives in a given
+order, each over the ones before, then the folder's own files over them;
+a later folder over an earlier one. Names match in any case on disk.
+
+```rust
+use storm_rs::archive::{Layers, WAR3_ARCHIVES};
+
+// War3.mpq, War3x.mpq, War3xLocal.mpq, War3Patch.mpq, then loose files.
+let (game, errors) = Layers::open(&["C:/Games/Warcraft III".into()], &WAR3_ARCHIVES);
+let (bytes, from) = game.read("Units\\UnitData.slk").unwrap();
+```
+
 ## Command line
 
 The workspace's `cli` crate is the `storm` command, built on the library:
