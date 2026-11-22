@@ -86,6 +86,11 @@ let (game, errors) = Layers::open(&["C:/Games/Warcraft III".into()], &WAR3_ARCHI
 let (bytes, from) = game.read("Units\\UnitData.slk").unwrap();
 ```
 
+`read` gives the topmost copy. A caller that needs more than that (a file
+and the changes later layers make to it) asks `holders(name)` for every
+layer that has it, lowest first, and reads each copy with
+`read_in(layer, name)`.
+
 ## Command line
 
 The workspace's `cli` crate is the `storm` command, built on the library:

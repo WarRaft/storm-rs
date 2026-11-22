@@ -94,10 +94,7 @@ impl Layers {
     /// Where `name` comes from: the topmost layer that has it.
     pub fn find(&self, name: &str) -> Option<Source> {
         let name = clean_name(name)?;
-        self.layers.iter().rev().find_map(|layer| match layer {
-            Layer::Archive(a) => a.has_file(&name).then(|| Source::Archive(PathBuf::from(&a.path))),
-            Layer::Folder(dir) => find_file(dir, &name).map(Source::File),
-        })
+        self.layers.iter().rev().find_map(|layer| layer.find(&name))
     }
 
     /// The contents of `name` from the topmost layer that has it, and
@@ -105,20 +102,50 @@ impl Layers {
     /// skipped, so the layer below it answers.
     pub fn read(&self, name: &str) -> Option<(Vec<u8>, Source)> {
         let name = clean_name(name)?;
-        self.layers.iter().rev().find_map(|layer| match layer {
+        self.layers.iter().rev().find_map(|layer| layer.read(&name))
+    }
+
+    /// Every layer that has `name`, lowest first, by its place in the
+    /// stack (for [`read_in`](Self::read_in)). For a caller that reads
+    /// more than the topmost copy: a file and the changes to it that
+    /// layers add, say.
+    pub fn holders(&self, name: &str) -> Vec<usize> {
+        let Some(name) = clean_name(name) else { return Vec::new() };
+        (0..self.layers.len()).filter(|&i| self.layers[i].find(&name).is_some()).collect()
+    }
+
+    /// The contents of `name` from layer `layer` alone (a place
+    /// [`holders`](Self::holders) gives), and where it came from.
+    pub fn read_in(&self, layer: usize, name: &str) -> Option<(Vec<u8>, Source)> {
+        self.layers.get(layer)?.read(&clean_name(name)?)
+    }
+}
+
+impl Layer {
+    /// Where this layer has `name` (a clean name), if it does.
+    fn find(&self, name: &str) -> Option<Source> {
+        match self {
+            Layer::Archive(a) => a.has_file(name).then(|| Source::Archive(PathBuf::from(&a.path))),
+            Layer::Folder(dir) => find_file(dir, name).map(Source::File),
+        }
+    }
+
+    /// This layer's `name` (a clean name), if it has it and it reads.
+    fn read(&self, name: &str) -> Option<(Vec<u8>, Source)> {
+        match self {
             Layer::Archive(a) => {
-                if !a.has_file(&name) {
+                if !a.has_file(name) {
                     return None;
                 }
-                let data = a.read_file(&name).ok()?;
+                let data = a.read_file(name).ok()?;
                 Some((data, Source::Archive(PathBuf::from(&a.path))))
             }
             Layer::Folder(dir) => {
-                let path = find_file(dir, &name)?;
+                let path = find_file(dir, name)?;
                 let data = std::fs::read(&path).ok()?;
                 Some((data, Source::File(path)))
             }
-        })
+        }
     }
 }
 
@@ -192,6 +219,16 @@ mod tests {
         assert_eq!(layers.find("Units/b.txt"), Some(Source::File(game.join("Units").join("b.txt"))));
         assert_eq!(text("..\\a.txt"), None);
         assert_eq!(text("nope.txt"), None);
+        // Each copy, by its layer: base.mpq, PATCH.mpq, the folder.
+        assert_eq!(layers.holders("A.TXT"), vec![0, 1]);
+        assert_eq!(layers.holders("units\\b.txt"), vec![0, 2]);
+        assert!(layers.holders("nope.txt").is_empty());
+        let copy = |i: usize, n: &str| layers.read_in(i, n).map(|(d, _)| String::from_utf8(d).unwrap());
+        assert_eq!(copy(0, "a.txt").as_deref(), Some("base"));
+        assert_eq!(copy(0, "Units/b.txt").as_deref(), Some("base"));
+        assert_eq!(copy(2, "Units/b.txt").as_deref(), Some("loose"));
+        assert_eq!(copy(2, "a.txt"), None);
+        assert_eq!(copy(9, "a.txt"), None);
         assert!(Layers::open(&[dir.join("none")], &["base.mpq"]).0.is_empty());
     }
 
