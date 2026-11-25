@@ -288,6 +288,21 @@ pub fn encrypt_block(data: &mut [u8], key: u32) {
 // Key detection functions
 // =============================================================================
 
+/// The data of a file stored whole (`single_unit`) or in sectors of
+/// `sector_size` without a sector offset table (an uncompressed one):
+/// decrypted (`decrypt`) or encrypted with `key`, each sector with its own
+/// (`key + i`), as StormLib and the game store it.
+pub fn crypt_file_data(data: &mut [u8], key: u32, sector_size: u32, single_unit: bool, decrypt: bool) {
+    let one = |chunk: &mut [u8], k: u32| if decrypt { decrypt_block(chunk, k) } else { encrypt_block(chunk, k) };
+    if single_unit || sector_size == 0 {
+        one(data, key);
+        return;
+    }
+    for (i, chunk) in data.chunks_mut(sector_size as usize).enumerate() {
+        one(chunk, key.wrapping_add(i as u32));
+    }
+}
+
 /// Detect file encryption key based on sector size.
 ///
 /// This works because we know what the first DWORD should decrypt to.

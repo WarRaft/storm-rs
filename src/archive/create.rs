@@ -670,7 +670,8 @@ impl MpqArchiveBuilder {
             final_flags &= !MPQ_FILE_COMPRESS;
             let mut raw = data.to_vec();
             if encrypted {
-                encrypt_block(&mut raw, key);
+                // In sectors unless single unit: each with its own key.
+                crate::crypto::crypt_file_data(&mut raw, key, sector_size.max(512), flags & MPQ_FILE_SINGLE_UNIT != 0, false);
             }
             raw
         };

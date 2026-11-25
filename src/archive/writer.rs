@@ -309,9 +309,10 @@ impl MpqArchiveWriter {
                 let is_compressed = (block.flags & (MPQ_FILE_COMPRESS | MPQ_FILE_IMPLODE)) != 0;
 
                 if (block.flags & MPQ_FILE_SINGLE_UNIT) != 0 || !is_compressed {
-                    // Single unit (or uncompressed): simple decrypt/encrypt
-                    decrypt_block(&mut data, old_key);
-                    encrypt_block(&mut data, new_key);
+                    // Single unit (whole), or uncompressed (a key a sector).
+                    let single = (block.flags & MPQ_FILE_SINGLE_UNIT) != 0;
+                    crate::crypto::crypt_file_data(&mut data, old_key, self.sector_size, single, true);
+                    crate::crypto::crypt_file_data(&mut data, new_key, self.sector_size, single, false);
                 } else {
                     // Sectored: need to handle sector table
                     // Sector table is at the beginning of data

@@ -91,6 +91,25 @@ and the changes later layers make to it) asks `holders(name)` for every
 layer that has it, lowest first, and reads each copy with
 `read_in(layer, name)`.
 
+### Compacting
+
+`archive::compact::compact_archive(path)` gives back the space of files
+replaced or removed, as StormLib's `SFileCompactArchive`, and safely for
+maps: what's before the MPQ header (a map's `HM3W`) is kept; the hash
+table entry for entry and the block table index for index (so
+`(attributes)` stays right); the data spans the blocks cover packed in
+their order (blocks sharing data, as protected maps' do, keep sharing
+it); no names needed: a file encrypted with a key of its place
+(`MPQ_FILE_KEY_V2`) is encrypted again for its new place, its key from
+its name if known, else found from its data (the sector offset table, a
+WAVE/EXE/XML start), or the archive is left as it was. A header's size is
+its version's (protected maps write anything there). Real maps
+(`MAPS`, `real_maps_compact_to_the_same_files`) read the same after it.
+
+An uncompressed encrypted file that isn't one unit is in sectors, each
+encrypted with its own key (`key + i`), as StormLib and the game store
+it (`crypto::crypt_file_data`).
+
 ## Command line
 
 The workspace's `cli` crate is the `storm` command, built on the library:

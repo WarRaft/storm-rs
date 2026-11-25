@@ -6,7 +6,7 @@ use std::io::{Read, Seek, SeekFrom};
 use crate::archive::MpqArchive;
 use crate::compression::decompress;
 use crate::constants::*;
-use crate::crypto::{calculate_file_key, decrypt_block};
+use crate::crypto::{calculate_file_key, crypt_file_data, decrypt_block};
 use crate::error::{MpqError, MpqResult};
 use crate::types::FileInfo;
 
@@ -64,7 +64,8 @@ fn read_file_single_unit<R: Read + Seek>(
             file_info.file_size,
             flags,
         );
-        decrypt_block(&mut raw_data, file_key);
+        // An uncompressed one in sectors: each with its own key.
+        crypt_file_data(&mut raw_data, file_key, archive.sector_size, flags & MPQ_FILE_SINGLE_UNIT != 0, true);
     }
 
     // Decompress if needed
