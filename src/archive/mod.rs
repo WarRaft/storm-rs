@@ -12,7 +12,7 @@ pub mod writer;
 
 pub use create::*;
 pub use files::*;
-pub use layers::{Layers, Source, WAR3_ARCHIVES};
+pub use layers::{Layers, Source, Store, WAR3_ARCHIVES};
 pub use open::*;
 pub use tables::*;
 pub use writer::*;

@@ -20,11 +20,22 @@ use super::MpqArchive;
 /// ones before. [`Layers::open`] them from a game folder.
 pub const WAR3_ARCHIVES: [&str; 4] = ["War3.mpq", "War3x.mpq", "War3xLocal.mpq", "War3Patch.mpq"];
 
+/// Files of another kind of store, laid over the rest as an archive is
+/// ([`Layers::push_store`]): a game's CASC storage, say. Names come as
+/// [`Layers`] takes them, `\`-separated, any case.
+pub trait Store: std::fmt::Debug + Send + Sync {
+    /// Where it has `name`, if it does.
+    fn find(&self, name: &str) -> Option<Source>;
+    /// `name`'s bytes, if it has them and they read.
+    fn read(&self, name: &str) -> Option<Vec<u8>>;
+}
+
 /// One place a file can come from.
 #[derive(Debug)]
 enum Layer {
     Archive(Box<MpqArchive>),
     Folder(PathBuf),
+    Store(Box<dyn Store>),
 }
 
 /// Where a file was found.
@@ -34,6 +45,8 @@ pub enum Source {
     Archive(PathBuf),
     /// This file on disk.
     File(PathBuf),
+    /// In the store at this path (a game's CASC storage), under this name.
+    Storage(PathBuf, String),
 }
 
 /// Archives and folders over each other: see the module docs.
@@ -86,6 +99,16 @@ impl Layers {
         Ok(())
     }
 
+    /// Puts `files` on top of the layers.
+    pub fn push_store(&mut self, store: Box<dyn Store>) {
+        self.layers.push(Layer::Store(store));
+    }
+
+    /// Puts `other`'s layers on top of these, in their order.
+    pub fn extend(&mut self, other: Layers) {
+        self.layers.extend(other.layers);
+    }
+
     /// Whether nothing was opened.
     pub fn is_empty(&self) -> bool {
         self.layers.is_empty()
@@ -127,6 +150,7 @@ impl Layer {
         match self {
             Layer::Archive(a) => a.has_file(name).then(|| Source::Archive(PathBuf::from(&a.path))),
             Layer::Folder(dir) => find_file(dir, name).map(Source::File),
+            Layer::Store(f) => f.find(name),
         }
     }
 
@@ -144,6 +168,10 @@ impl Layer {
                 let path = find_file(dir, name)?;
                 let data = std::fs::read(&path).ok()?;
                 Some((data, Source::File(path)))
+            }
+            Layer::Store(f) => {
+                let source = f.find(name)?;
+                Some((f.read(name)?, source))
             }
         }
     }
@@ -260,5 +288,31 @@ mod tests {
         assert!(layers.push(&dir.join("none")).unwrap_err().contains("no such folder"));
         std::fs::write(dir.join("junk.w3x"), "no").unwrap();
         assert!(layers.push(&dir.join("junk.w3x")).is_err());
+    }
+
+    /// A store of another kind over a folder: it wins where it has a file.
+    #[test]
+    fn a_store_laid_over_the_rest() {
+        #[derive(Debug)]
+        struct One;
+        impl Store for One {
+            fn find(&self, name: &str) -> Option<Source> {
+                (name.eq_ignore_ascii_case("Units\\a.txt")).then(|| Source::Storage(PathBuf::from("/store"), "a".into()))
+            }
+            fn read(&self, name: &str) -> Option<Vec<u8>> {
+                self.find(name).map(|_| b"store".to_vec())
+            }
+        }
+        let dir = std::env::temp_dir().join(format!("storm-layers-store-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Units")).unwrap();
+        std::fs::write(dir.join("Units").join("a.txt"), b"folder").unwrap();
+        std::fs::write(dir.join("Units").join("b.txt"), b"folder b").unwrap();
+        let (mut layers, _) = Layers::open(std::slice::from_ref(&dir), &[]);
+        layers.push_store(Box::new(One));
+        assert_eq!(layers.read("units/a.txt").unwrap(), (b"store".to_vec(), Source::Storage(PathBuf::from("/store"), "a".into())));
+        assert_eq!(layers.read("Units\\b.txt").unwrap().0, b"folder b");
+        assert_eq!(layers.holders("Units/a.txt"), vec![0, 1]);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
